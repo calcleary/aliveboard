@@ -279,13 +279,13 @@
     const SUPABASE_URL = "https://gbxhbbbozzrnaxnrilmy.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdieGhiYmJvenpybmF4bnJpbG15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MzcwMzIsImV4cCI6MjA4NjMxMzAzMn0.Mih-TIFasRrdmnWMoFWXreiuhVuybjKwX5h3VYyBc8o";
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const rankKey = "aliveboard.rank.v1";
 
     let members = [];
 
     async function fetchMembers() {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from("members")
         .select("id, name, age, location, bio, created_at")
         .order("age", { ascending: false })
@@ -472,7 +472,7 @@
       const bio = document.getElementById("bio").value.trim();
       if (!name || !Number.isFinite(age)) return;
 
-      const { error } = await supabase.from("members").insert({ name, age, location, bio });
+      const { error } = await supabaseClient.from("members").insert({ name, age, location, bio });
       if (error) {
         document.getElementById("load-error").textContent = "Could not submit your entry. Please try again.";
         return;
