@@ -15,6 +15,7 @@
       --muted: #6a6a6a;
       --line: #e7e3da;
       --accent: #0b5fff;
+      --top: #fff3c4;
     }
     * { box-sizing: border-box; }
     body {
@@ -37,6 +38,7 @@
       margin: 0;
       font-size: clamp(28px, 4vw, 44px);
       letter-spacing: -0.4px;
+      cursor: pointer;
     }
     .sub {
       margin: 0;
@@ -72,7 +74,7 @@
     }
     .entry {
       display: grid;
-      grid-template-columns: 50px 1fr 80px;
+      grid-template-columns: 60px 1fr 80px;
       gap: 10px;
       align-items: center;
       padding: 10px 12px;
@@ -80,11 +82,29 @@
       border-radius: 12px;
       background: #fbfaf7;
       animation: rise 240ms ease;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .entry:hover {
+      background: #f6f4ee;
+      border-color: #ddd7cc;
+    }
+    .entry.top {
+      background: var(--top);
+      border-color: #e7d7a4;
     }
     .rank {
+      display: grid;
+      gap: 2px;
       font-weight: 600;
       color: var(--accent);
     }
+    .trend {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .trend.up { color: #0f7a3b; }
+    .trend.down { color: #b42318; }
     .name {
       font-weight: 600;
     }
@@ -106,13 +126,18 @@
       letter-spacing: 0.6px;
       color: var(--muted);
     }
-    input {
+    input, textarea {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--line);
       border-radius: 12px;
       font-size: 14px;
       background: #fff;
+      font-family: inherit;
+    }
+    textarea {
+      min-height: 70px;
+      resize: vertical;
     }
     button {
       padding: 10px 12px;
@@ -133,6 +158,54 @@
       gap: 12px;
       color: var(--muted);
       font-size: 13px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+    }
+    .view {
+      display: none;
+    }
+    .view.active {
+      display: block;
+    }
+    .profile {
+      display: grid;
+      gap: 12px;
+    }
+    .profile h2 {
+      margin: 0;
+    }
+    .profile-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: #fbfaf7;
+      display: grid;
+      gap: 8px;
+    }
+    .profile-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .back {
+      border: 1px solid var(--line);
+      background: #f1efe8;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      width: fit-content;
+    }
+    .error {
+      color: #b42318;
+      font-size: 13px;
     }
     @keyframes rise {
       from { transform: translateY(6px); opacity: 0; }
@@ -142,16 +215,17 @@
 </head>
 <body>
   <header>
-    <h1>Aliveboard</h1>
+    <h1 id="home-link">Aliveboard</h1>
     <p class="sub">A minimalist leaderboard where people rank by age.</p>
   </header>
 
   <main>
-    <div class="row">
+    <div class="row view active" id="home-view">
       <section class="panel">
         <h2>Leaderboard</h2>
         <div class="stats" id="stats"></div>
         <div class="leaderboard" id="leaderboard"></div>
+        <div class="error" id="load-error"></div>
       </section>
 
       <section class="panel">
@@ -165,58 +239,136 @@
             <label for="age">Age</label>
             <input id="age" type="number" inputmode="numeric" min="1" max="120" placeholder="Years" required />
           </div>
+          <div>
+            <label for="location">Location</label>
+            <input id="location" placeholder="City, Country" />
+          </div>
+          <div>
+            <label for="bio">Bio</label>
+            <textarea id="bio" placeholder="A short line about you"></textarea>
+          </div>
           <button type="submit">Join the board</button>
-          <div class="hint">Entries are stored locally in your browser.</div>
+          <div class="hint">Entries are public and stored in Aliveboard.</div>
         </form>
       </section>
     </div>
+
+    <section class="panel view" id="profile-view">
+      <button class="back" id="back-home">Back to leaderboard</button>
+      <div class="profile">
+        <h2 id="profile-name"></h2>
+        <div class="profile-card" id="profile-card">
+          <div class="meta" id="profile-meta"></div>
+          <div class="name" id="profile-rank"></div>
+          <div class="age" id="profile-age"></div>
+          <div class="meta" id="profile-location"></div>
+          <div id="profile-bio"></div>
+        </div>
+        <div class="profile-actions">
+          <button id="download-card">Download rank card</button>
+          <button id="share-profile">Share profile link</button>
+        </div>
+      </div>
+    </section>
   </main>
 
+  <canvas id="card-canvas" width="900" height="500" style="display:none"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const storageKey = "aliveboard.v1";
-    const defaultData = [
-      { name: "Kai", age: 72, createdAt: "2026-02-01" },
-      { name: "Riley", age: 54, createdAt: "2026-02-02" },
-      { name: "Jordan", age: 32, createdAt: "2026-02-03" }
-    ];
+    const SUPABASE_URL = "https://gbxhbbbozzrnaxnrilmy.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdieGhiYmJvenpybmF4bnJpbG15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MzcwMzIsImV4cCI6MjA4NjMxMzAzMn0.Mih-TIFasRrdmnWMoFWXreiuhVuybjKwX5h3VYyBc8o";
 
-    const state = loadData();
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const rankKey = "aliveboard.rank.v1";
 
-    function loadData() {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return structuredClone(defaultData);
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return structuredClone(defaultData);
+    let members = [];
+
+    async function fetchMembers() {
+      const { data, error } = await supabase
+        .from("members")
+        .select("id, name, age, location, bio, created_at")
+        .order("age", { ascending: false })
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        document.getElementById("load-error").textContent = "Could not load leaderboard. Please try again later.";
+        console.error(error);
+        return;
       }
-    }
-
-    function saveData() {
-      localStorage.setItem(storageKey, JSON.stringify(state));
+      members = data || [];
+      render();
     }
 
     function render() {
       const board = document.getElementById("leaderboard");
       board.innerHTML = "";
 
-      const sorted = [...state].sort((a, b) => b.age - a.age);
-      sorted.forEach((entry, index) => {
+      const prevRanks = loadRanks();
+      const newRanks = {};
+
+      members.forEach((entry, index) => {
+        const rank = index + 1;
+        newRanks[entry.id] = rank;
+
         const item = document.createElement("div");
         item.className = "entry";
+        if (rank <= 10) item.classList.add("top");
+        const trend = getTrend(prevRanks[entry.id], rank);
+
         item.innerHTML = `
-          <div class="rank">#${index + 1}</div>
+          <div class="rank">
+            <div>#${rank}</div>
+            <div class="trend ${trend.className}">${trend.text}</div>
+          </div>
           <div>
             <div class="name">${escapeHtml(entry.name)}</div>
-            <div class="meta">Joined ${formatDate(entry.createdAt)}</div>
+            <div class="meta">Joined ${formatDate(entry.created_at)}</div>
           </div>
           <div class="age">${entry.age}</div>
         `;
+        item.addEventListener("click", () => openProfile(entry));
         board.appendChild(item);
       });
 
       const stats = document.getElementById("stats");
-      stats.textContent = `${state.length} members`;
+      stats.innerHTML = "";
+      stats.appendChild(statBadge(`${members.length} members`));
+      if (members.length) {
+        const ages = members.map((m) => m.age);
+        stats.appendChild(statBadge(`Oldest ${Math.max(...ages)}`));
+        stats.appendChild(statBadge(`Youngest ${Math.min(...ages)}`));
+      }
+      stats.appendChild(statBadge("Top 10 highlighted"));
+
+      saveRanks(newRanks);
+    }
+
+    function statBadge(text) {
+      const span = document.createElement("span");
+      span.className = "badge";
+      span.textContent = text;
+      return span;
+    }
+
+    function getTrend(previous, current) {
+      if (!previous) return { text: "•", className: "" };
+      const delta = previous - current;
+      if (delta > 0) return { text: `▲ +${delta}`, className: "up" };
+      if (delta < 0) return { text: `▼ ${delta}`, className: "down" };
+      return { text: "•", className: "" };
+    }
+
+    function loadRanks() {
+      try {
+        return JSON.parse(localStorage.getItem(rankKey)) || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveRanks(ranks) {
+      localStorage.setItem(rankKey, JSON.stringify(ranks));
     }
 
     function formatDate(value) {
@@ -236,19 +388,128 @@
       }[ch]));
     }
 
-    document.getElementById("signup").addEventListener("submit", (event) => {
+    function openProfile(member) {
+      document.getElementById("home-view").classList.remove("active");
+      document.getElementById("profile-view").classList.add("active");
+      const rank = members.findIndex((m) => m.id === member.id) + 1;
+
+      document.getElementById("profile-name").textContent = member.name;
+      document.getElementById("profile-meta").textContent = `Joined ${formatDate(member.created_at)}`;
+      document.getElementById("profile-rank").textContent = `Rank #${rank}`;
+      document.getElementById("profile-age").textContent = `${member.age} years`;
+      document.getElementById("profile-location").textContent = member.location ? `Location: ${member.location}` : "";
+      document.getElementById("profile-bio").textContent = member.bio || "";
+
+      const url = new URL(window.location);
+      url.searchParams.set("member", member.id);
+      history.pushState({ member: member.id }, "", url);
+
+      document.getElementById("download-card").onclick = () => downloadCard(member, rank);
+      document.getElementById("share-profile").onclick = () => shareProfile(member, url.toString());
+    }
+
+    function closeProfile() {
+      document.getElementById("profile-view").classList.remove("active");
+      document.getElementById("home-view").classList.add("active");
+      const url = new URL(window.location);
+      url.searchParams.delete("member");
+      history.pushState({}, "", url);
+    }
+
+    function downloadCard(member, rank) {
+      const canvas = document.getElementById("card-canvas");
+      const ctx = canvas.getContext("2d");
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#0b5fff";
+      ctx.fillRect(40, 40, canvas.width - 80, canvas.height - 80);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "600 44px 'Space Grotesk', sans-serif";
+      ctx.fillText("Aliveboard", 80, 120);
+
+      ctx.font = "600 32px 'Space Grotesk', sans-serif";
+      ctx.fillText(`${member.name}`, 80, 200);
+      ctx.font = "400 22px 'Space Grotesk', sans-serif";
+      ctx.fillText(`Rank #${rank}`, 80, 250);
+      ctx.fillText(`${member.age} years old`, 80, 290);
+      if (member.location) ctx.fillText(member.location, 80, 330);
+
+      ctx.font = "400 18px 'Space Grotesk', sans-serif";
+      ctx.fillText("aliveboard.co.uk", 80, 400);
+
+      const link = document.createElement("a");
+      link.download = `aliveboard-${member.name}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+
+    async function shareProfile(member, url) {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `Aliveboard: ${member.name}`,
+            text: `See ${member.name}'s rank on Aliveboard.`,
+            url
+          });
+          return;
+        } catch (error) {
+          console.warn(error);
+        }
+      }
+      await navigator.clipboard.writeText(url);
+      alert("Profile link copied to clipboard");
+    }
+
+    document.getElementById("signup").addEventListener("submit", async (event) => {
       event.preventDefault();
       const name = document.getElementById("name").value.trim();
       const age = Number(document.getElementById("age").value);
+      const location = document.getElementById("location").value.trim();
+      const bio = document.getElementById("bio").value.trim();
       if (!name || !Number.isFinite(age)) return;
-      state.push({ name, age, createdAt: new Date().toISOString().slice(0, 10) });
-      saveData();
+
+      const { error } = await supabase.from("members").insert({ name, age, location, bio });
+      if (error) {
+        document.getElementById("load-error").textContent = "Could not submit your entry. Please try again.";
+        return;
+      }
+
       document.getElementById("name").value = "";
       document.getElementById("age").value = "";
-      render();
+      document.getElementById("location").value = "";
+      document.getElementById("bio").value = "";
+      await fetchMembers();
     });
 
-    render();
+    document.getElementById("back-home").addEventListener("click", closeProfile);
+    document.getElementById("home-link").addEventListener("click", closeProfile);
+
+    window.addEventListener("popstate", () => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("member");
+      if (!id) {
+        closeProfile();
+        return;
+      }
+      const member = members.find((m) => m.id === id);
+      if (member) openProfile(member);
+    });
+
+    async function boot() {
+      await fetchMembers();
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("member");
+      if (id) {
+        const member = members.find((m) => m.id === id);
+        if (member) openProfile(member);
+      }
+    }
+
+    boot();
   </script>
 </body>
 </html>
