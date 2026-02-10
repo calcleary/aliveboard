@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aliveboard</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
+    :root {
+      color-scheme: light;
+      --bg: #f6f5f1;
+      --panel: #ffffff;
+      --ink: #141414;
+      --muted: #6a6a6a;
+      --line: #e7e3da;
+      --accent: #0b5fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(1000px 500px at 0% -10%, #ffffff 0%, transparent 60%),
+        radial-gradient(900px 450px at 100% -20%, #eef2ff 0%, transparent 55%),
+        var(--bg);
+      color: var(--ink);
+    }
+    header {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px 20px;
+      display: grid;
+      gap: 8px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: -0.4px;
+    }
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    main {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 20px 50px;
+      display: grid;
+      gap: 18px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 840px) {
+      .row { grid-template-columns: 1fr; }
+    }
+    .leaderboard {
+      display: grid;
+      gap: 8px;
+    }
+    .entry {
+      display: grid;
+      grid-template-columns: 50px 1fr 80px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfaf7;
+      animation: rise 240ms ease;
+    }
+    .rank {
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .name {
+      font-weight: 600;
+    }
+    .age {
+      text-align: right;
+      font-weight: 600;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    form {
+      display: grid;
+      gap: 10px;
+    }
+    label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font-size: 14px;
+      background: #fff;
+    }
+    button {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f0efe9;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    button:hover { background: #e8e6df; }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stats {
+      display: flex;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @keyframes rise {
+      from { transform: translateY(6px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Aliveboard</h1>
+    <p class="sub">A minimalist leaderboard where people rank by age.</p>
+  </header>
+
+  <main>
+    <div class="row">
+      <section class="panel">
+        <h2>Leaderboard</h2>
+        <div class="stats" id="stats"></div>
+        <div class="leaderboard" id="leaderboard"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Sign Up</h2>
+        <form id="signup">
+          <div>
+            <label for="name">Name</label>
+            <input id="name" placeholder="Your name" required />
+          </div>
+          <div>
+            <label for="age">Age</label>
+            <input id="age" type="number" inputmode="numeric" min="1" max="120" placeholder="Years" required />
+          </div>
+          <button type="submit">Join the board</button>
+          <div class="hint">Entries are stored locally in your browser.</div>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const storageKey = "aliveboard.v1";
+    const defaultData = [
+      { name: "Kai", age: 72, createdAt: "2026-02-01" },
+      { name: "Riley", age: 54, createdAt: "2026-02-02" },
+      { name: "Jordan", age: 32, createdAt: "2026-02-03" }
+    ];
+
+    const state = loadData();
+
+    function loadData() {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return structuredClone(defaultData);
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return structuredClone(defaultData);
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function render() {
+      const board = document.getElementById("leaderboard");
+      board.innerHTML = "";
+
+      const sorted = [...state].sort((a, b) => b.age - a.age);
+      sorted.forEach((entry, index) => {
+        const item = document.createElement("div");
+        item.className = "entry";
+        item.innerHTML = `
+          <div class="rank">#${index + 1}</div>
+          <div>
+            <div class="name">${escapeHtml(entry.name)}</div>
+            <div class="meta">Joined ${formatDate(entry.createdAt)}</div>
+          </div>
+          <div class="age">${entry.age}</div>
+        `;
+        board.appendChild(item);
+      });
+
+      const stats = document.getElementById("stats");
+      stats.textContent = `${state.length} members`;
+    }
+
+    function formatDate(value) {
+      if (!value) return "today";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "today";
+      return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[ch]));
+    }
+
+    document.getElementById("signup").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = document.getElementById("name").value.trim();
+      const age = Number(document.getElementById("age").value);
+      if (!name || !Number.isFinite(age)) return;
+      state.push({ name, age, createdAt: new Date().toISOString().slice(0, 10) });
+      saveData();
+      document.getElementById("name").value = "";
+      document.getElementById("age").value = "";
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
