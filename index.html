@@ -240,6 +240,10 @@
             <input id="email" type="email" placeholder="you@example.com" required />
           </div>
           <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="Create a password" minlength="6" required />
+          </div>
+          <div>
             <label for="age">Age</label>
             <input id="age" type="number" inputmode="numeric" min="1" max="120" placeholder="Years" required />
           </div>
@@ -290,7 +294,7 @@
 
     async function fetchMembers() {
       const { data, error } = await supabaseClient
-        .from("members")
+        .from("profiles")
         .select("id, name, age, location, bio, created_at")
         .order("age", { ascending: false })
         .order("created_at", { ascending: true });
@@ -472,22 +476,35 @@
       event.preventDefault();
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
       const age = Number(document.getElementById("age").value);
       const location = document.getElementById("location").value.trim();
       const bio = document.getElementById("bio").value.trim();
-      if (!name || !email || !Number.isFinite(age)) return;
+      if (!name || !email || !password || !Number.isFinite(age)) return;
 
-      const { error } = await supabaseClient.from("members").insert({ name, email, age, location, bio });
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
       if (error) {
-        document.getElementById("load-error").textContent = "Could not submit your entry. Please try again.";
+        document.getElementById("load-error").textContent = "Could not create your account. Please try again.";
         return;
+      }
+      const userId = data?.user?.id;
+      if (userId) {
+        const { error: profileError } = await supabaseClient
+          .from("profiles")
+          .insert({ id: userId, name, age, location, bio });
+        if (profileError) {
+          document.getElementById("load-error").textContent = "Account created, but profile failed to save.";
+          return;
+        }
       }
 
       document.getElementById("name").value = "";
       document.getElementById("email").value = "";
+      document.getElementById("password").value = "";
       document.getElementById("age").value = "";
       document.getElementById("location").value = "";
       document.getElementById("bio").value = "";
+      document.getElementById("load-error").textContent = "Check your email to confirm your account.";
       await fetchMembers();
     });
 
