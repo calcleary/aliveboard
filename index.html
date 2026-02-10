@@ -482,20 +482,16 @@
       const bio = document.getElementById("bio").value.trim();
       if (!name || !email || !password || !Number.isFinite(age)) return;
 
-      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      const { error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name, age, location, bio }
+        }
+      });
       if (error) {
         document.getElementById("load-error").textContent = "Could not create your account. Please try again.";
         return;
-      }
-      const userId = data?.user?.id;
-      if (userId) {
-        const { error: profileError } = await supabaseClient
-          .from("profiles")
-          .insert({ id: userId, name, age, location, bio });
-        if (profileError) {
-          document.getElementById("load-error").textContent = "Account created, but profile failed to save.";
-          return;
-        }
       }
 
       document.getElementById("name").value = "";
@@ -504,7 +500,7 @@
       document.getElementById("age").value = "";
       document.getElementById("location").value = "";
       document.getElementById("bio").value = "";
-      document.getElementById("load-error").textContent = "Check your email to confirm your account.";
+      document.getElementById("load-error").textContent = "Check your email to confirm your account. Your profile will appear once confirmed.";
       await fetchMembers();
     });
 
